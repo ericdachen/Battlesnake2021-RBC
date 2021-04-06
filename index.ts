@@ -142,9 +142,16 @@ function immediateDanger(
   return false;
 }
 
-function spin() {}
+function spin() {
+  //Spins on the spot until it reaches certain amount of HP
+}
 
-function getFood() {}
+function getFood() {
+  //calculates shortest distance to food
+  // Also calculates which food is furthest from other snakes
+}
+
+//Doesn't bump into any snakes (accounts for +2 tiles away in case both go to the same empty tile)
 
 function calculateMove(dir: Direction) {
   if (dir == "up") {
