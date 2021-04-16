@@ -7,6 +7,7 @@ import { SnakeInfo, Move, Direction, GameRequest, Coordinates } from "./types";
 const PORT = process.env.PORT || 3000;
 
 const app = express();
+
 app.use(bodyParser.json());
 
 app.get("/", handleIndex);
@@ -51,8 +52,8 @@ function handleIndex(request: Request, response: Response<SnakeInfo>) {
     apiversion: "1",
     author: "",
     color: "#FFC72C",
-    head: "shac-tiger-king",
-    tail: "shac-tiger-tail",
+    head: "evil",
+    tail: "bolt",
   };
   response.status(200).json(battlesnakeInfo);
 }
@@ -63,33 +64,25 @@ function initGrid(request: GameRequest, snakeCoords: Coordinates[]) {
   const width = gameData.board.width;
 
   //creating the grid
-  let grid: number[][] = [];
-  var templateRow: number[] = [];
+  let myGrid: number[][] = [];
 
-  for (let i = 0; i < width; i++) {
-    templateRow[i] = 0;
+  //intializing the templateRow
+  for (let i = height - 1; i >= 0; i--) {
+    //the row we are appending
+    var templateRow: number[] = [];
+    for (let j = 0; j < width; j++) {
+      templateRow[j] = 0;
+    }
+    for (let j of snakeCoords) {
+      //the columns values we are appending
+      if (j.y === i) {
+        templateRow[j.x] = 1;
+      }
+    }
+    myGrid.push(templateRow);
   }
 
-  for (let i = 0; i < height; i++) {
-    grid[i] = templateRow;
-  }
-
-  //adding the snakes
-  //we are first indexing the row and then the column
-
-  for (let i of snakeCoords) {
-    grid[i.x][i.y] = 1;
-  }
-
-  //print grid (for testing)
-  //console.log(snakeCoords);
-  console.log(grid);
-
-  // this.aStarInstance = new AStarFinder({
-  //   grid: {
-  //     matrix: grid
-  //   }
-  // });
+  return myGrid;
 }
 
 function handleStart(request: GameRequest, response: Response) {
@@ -113,7 +106,19 @@ function handleMove(request: GameRequest, response: Response<Move>) {
     }
   }
 
-  initGrid(request, allSnakeCoordinates);
+  let updatedGrid: number[][] = initGrid(request, allSnakeCoordinates);
+  let aStarInstance: AStarFinder;
+
+  aStarInstance = new AStarFinder({
+    grid: {
+      matrix: updatedGrid,
+    },
+    diagonalAllowed: false,
+    includeStartNode: false,
+    includeEndNode: false,
+  });
+
+  //console.log(aStarInstance);
 
   for (let i in allMoves) {
     if (!immediateDanger(request, allMoves[i], allSnakeCoordinates)) {
@@ -185,47 +190,52 @@ function immediateDanger(
       return true;
     }
   }
+
   //don't go to any squares that lead to dead ends
   //OHHH IT DOESN'T CONSIDER A WALL AS A BAD MOVE YET!!
   // GOTTA DO SOMETHING ABOUT THAT
-  let movesAfterNewMove = 4;
-  for (let i in snakeCoords) {
-    if (newMove.x - 1 == snakeCoords[i].x) {
-      movesAfterNewMove -= 1;
-      break;
-    }
-  }
-  for (let i in snakeCoords) {
-    if (newMove.x + 1 == snakeCoords[i].x) {
-      movesAfterNewMove -= 1;
-      break;
-    }
-  }
-  for (let i in snakeCoords) {
-    if (newMove.y - 1 == snakeCoords[i].y) {
-      movesAfterNewMove -= 1;
-      break;
-    }
-  }
-  for (let i in snakeCoords) {
-    if (newMove.y + 1 == snakeCoords[i].y) {
-      movesAfterNewMove -= 1;
-      break;
-    }
-  }
 
-  if (movesAfterNewMove == 0) {
-    return true;
-  }
+  //   let movesAfterNewMove = 4;
+  //   for (let i in snakeCoords) {
+  //     if (newMove.x - 1 == snakeCoords[i].x) {
+  //       movesAfterNewMove -= 1;
+  //       break;
+  //   }
+
+  // }
+  //   for (let i in snakeCoords) {
+  //     if (newMove.x + 1 == snakeCoords[i].x) {
+  //       movesAfterNewMove -= 1;
+  //       break;
+  //   }
+  // }
+  //   for (let i in snakeCoords) {
+  //     if (newMove.y - 1 == snakeCoords[i].y) {
+  //       movesAfterNewMove -= 1;
+  //       break;
+  //   }
+  // }
+  //   for (let i in snakeCoords) {
+  //     if (newMove.y + 1 == snakeCoords[i].y) {
+  //       movesAfterNewMove -= 1;
+  //       break;
+  //   }
+  // }
+
+  // if (movesAfterNewMove == 0) {
+  //   return true;
+  // }
 }
 
 function chaseTail(request: GameRequest, possibleMoves: Direction[]) {
   //Spins on the spot until it reaches certain amount of HP
   //spins by chasing its own tail
   //try to cover as much area as possible
-  // const gameData = request.body;
-  // var move:Direction
-  // return move
+
+  const gameData = request.body;
+  var move: Direction;
+
+  return move;
 }
 
 function spinSquare(request: GameRequest, possibleMoves: Direction[]) {
