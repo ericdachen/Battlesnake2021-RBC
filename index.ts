@@ -58,32 +58,42 @@ function handleIndex(request: Request, response: Response<SnakeInfo>) {
   response.status(200).json(battlesnakeInfo);
 }
 
+
+
 function initGrid(request: GameRequest, snakeCoords: Coordinates[]) {
   const gameData = request.body;
   const height = gameData.board.height;
   const width = gameData.board.width;
-
+  const bodyCoords = gameData.you.body;
+  const tail = bodyCoords[bodyCoords.length-1];
+  const head = gameData.you.head;
+  
   //creating the grid
   let myGrid: number[][] = [];
-
+ 
   //intializing the templateRow
-  for (let i = height - 1; i >= 0; i--) {
-    //the row we are appending
+  for (let i = 0; i < height; i++) { //the row we are appending
     var templateRow: number[] = [];
     for (let j = 0; j < width; j++) {
-      templateRow[j] = 0;
+      templateRow[j]=0;
     }
-    for (let j of snakeCoords) {
-      //the columns values we are appending
+    for (let j of snakeCoords) { //the columns values we are appending
       if (j.y === i) {
         templateRow[j.x] = 1;
       }
+    }
+    if (head.y === i) {
+      templateRow[head.x] = 0;
+    }
+    if (tail.y === i) {
+      templateRow[tail.x] = 0;
     }
     myGrid.push(templateRow);
   }
 
   return myGrid;
-}
+  
+} 
 
 function handleStart(request: GameRequest, response: Response) {
   const gameData = request.body;
@@ -106,7 +116,8 @@ function handleMove(request: GameRequest, response: Response<Move>) {
     }
   }
 
-  let updatedGrid: number[][] = initGrid(request, allSnakeCoordinates);
+  let updatedGrid: number[][] = initGrid(request, allSnakeCoordinates
+  );
   let aStarInstance: AStarFinder;
 
   aStarInstance = new AStarFinder({
@@ -115,10 +126,12 @@ function handleMove(request: GameRequest, response: Response<Move>) {
     },
     diagonalAllowed: false,
     includeStartNode: false,
-    includeEndNode: false,
+    includeEndNode: true,
   });
 
   //console.log(aStarInstance);
+  //console.log(updatedGrid);
+  
 
   for (let i in allMoves) {
     if (!immediateDanger(request, allMoves[i], allSnakeCoordinates)) {
@@ -133,17 +146,14 @@ function handleMove(request: GameRequest, response: Response<Move>) {
   //   }
   // }
 
-  var move: Direction =
-    possibleMoves[Math.floor(Math.random() * possibleMoves.length)];
+  var move: Direction = possibleMoves[Math.floor(Math.random() * possibleMoves.length)];
 
   //only spin if health is over 25
-  // if (gameData.you.health > 25) {
-  //   if (gameData.you.length % 4 == 0){
-  //     move = spinSquare(request, possibleMoves)
-  //   } else {
-  //     move = spin(request, possibleMoves)
-  //   }
-  // }
+  if (gameData.you.health > 25) {
+    chaseTail(request, possibleMoves, aStarInstance);  
+  } else {
+    getFood(request, possibleMoves, aStarInstance);
+  }
 
   console.log("MOVE: " + move);
   response.status(200).send({
@@ -190,68 +200,90 @@ function immediateDanger(
       return true;
     }
   }
-
-  //don't go to any squares that lead to dead ends
-  //OHHH IT DOESN'T CONSIDER A WALL AS A BAD MOVE YET!!
-  // GOTTA DO SOMETHING ABOUT THAT
-
-  //   let movesAfterNewMove = 4;
-  //   for (let i in snakeCoords) {
-  //     if (newMove.x - 1 == snakeCoords[i].x) {
-  //       movesAfterNewMove -= 1;
-  //       break;
-  //   }
-
-  // }
-  //   for (let i in snakeCoords) {
-  //     if (newMove.x + 1 == snakeCoords[i].x) {
-  //       movesAfterNewMove -= 1;
-  //       break;
-  //   }
-  // }
-  //   for (let i in snakeCoords) {
-  //     if (newMove.y - 1 == snakeCoords[i].y) {
-  //       movesAfterNewMove -= 1;
-  //       break;
-  //   }
-  // }
-  //   for (let i in snakeCoords) {
-  //     if (newMove.y + 1 == snakeCoords[i].y) {
-  //       movesAfterNewMove -= 1;
-  //       break;
-  //   }
-  // }
-
-  // if (movesAfterNewMove == 0) {
+  const allMoves: Direction[] = ["up", "down", "left", "right"];
+  let count = 4;
+  for (let i = 0; i < allMoves.length; i++) {
+    if (isDeadDirection(request, newMove, snakeCoords, allMoves[i])) {
+      count -= 1;
+    }
+  }
+  if (count == 0) {
+    return true;
+  }
+  // if (isDeadEnd(request, newMove, snakeCoords)) {
   //   return true;
   // }
+
+return false;
 }
 
-function chaseTail(request: GameRequest, possibleMoves: Direction[]) {
+function isDeadDirection( request: GameRequest,
+  newMove: Coordinates,
+  snakeCoords: Coordinates[],
+  direction: Direction) {
+
+  const gameData = request.body;
+
+  const height = gameData.board.height;
+  const width = gameData.board.width;
+
+  let translation: number[] = calculateMove(direction);
+
+    let newerMove = {
+    x: newMove.x + translation[0],
+    y: newMove.y + translation[1],
+  };
+
+    if (newMove.y > height - 1 ||
+    newMove.y < 0 ||
+    newMove.x < 0 ||
+    newMove.x > width - 1) {
+      return true;
+  }
+    for (let i in snakeCoords) {
+    if (newMove.x == snakeCoords[i].x && newMove.y == snakeCoords[i].y) {
+      return true;
+    }
+  }
+}
+
+
+function chaseTail(request:GameRequest, possibleMoves:Direction[], aStarInstance: AStarFinder) {
   //Spins on the spot until it reaches certain amount of HP
   //spins by chasing its own tail
   //try to cover as much area as possible
 
   const gameData = request.body;
-  var move: Direction;
+  const bodyCoords: Coordinates[] = gameData.you.body;
+  var move:Direction;
+
+  let startPos = gameData.you.head;
+  let goalPos = bodyCoords[bodyCoords.length-1];
+  
+  console.log("Tail: " + goalPos.x + " " + goalPos.y);
+
+  let myPathway = aStarInstance.findPath(startPos, goalPos);
 
   return move;
 }
 
-function spinSquare(request: GameRequest, possibleMoves: Direction[]) {
+function spinSquare(request:GameRequest, possibleMoves:Direction[]) {
   //Spins on the spot until it reaches certain amount of HP
   //spins in a square (only called when length%4=0)
   // const gameData = request.body;
   // var move:Direction
+
+  
+  
   // return move
 }
 
-function getFood() {
+function getFood(request:GameRequest, possibleMoves:Direction[], aStarInstance: AStarFinder) {
   //calculates shortest distance to food
   // Also calculates which food is furthest from other snakes
 }
 
-//use A-star on every
+//use A-star on every 
 
 //Doesn't bump into any snakes (accounts for +2 tiles away in case both go to the same empty tile)
 
